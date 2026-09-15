@@ -1,0 +1,10 @@
+---
+description: Delete confirm 5s and article/case attachment limits
+alwaysApply: true
+---
+
+# Fix1 UI rules: delete + attachments
+
+- Every destructive **Xóa** control in the web UI must use `ConfirmDelete` with a **5 second** countdown; when time runs out, cancel automatically without deleting.
+- Article/case attachments (detail pages): allow **PDF, DOCX, JPEG, PNG** only; **max 2MB per file**; max **5** files per article or case.
+- If a file exceeds 2MB, show a warning dialog and require the user to dismiss with **Đã xem** (no auto-dismiss countdown). Do not upload the oversized file.
