@@ -28,6 +28,7 @@ export const articles = sqliteTable("articles", {
   title: text("title").notNull(),
   slug: text("slug").notNull().unique(),
   content: text("content").notNull().default(""),
+  aiKeywords: text("ai_keywords").notNull().default(""),
   equipmentTypeId: integer("equipment_type_id")
     .notNull()
     .references(() => equipmentTypes.id),
@@ -50,6 +51,7 @@ export const cases = sqliteTable("cases", {
   cause: text("cause").notNull().default(""),
   resolution: text("resolution").notNull().default(""),
   prevention: text("prevention").notNull().default(""),
+  aiKeywords: text("ai_keywords").notNull().default(""),
   severity: text("severity", {
     enum: ["low", "medium", "high", "critical"],
   })
@@ -127,6 +129,36 @@ export const media = sqliteTable("media", {
   uploadedById: integer("uploaded_by_id")
     .notNull()
     .references(() => users.id),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+});
+
+export const software = sqliteTable("software", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  functionText: text("function").notNull().default(""),
+  vendor: text("vendor").notNull().default(""),
+  notes: text("notes").notNull().default(""),
+  aiKeywords: text("ai_keywords").notNull().default(""),
+  uploadedById: integer("uploaded_by_id")
+    .notNull()
+    .references(() => users.id),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+});
+
+export const softwareFiles = sqliteTable("software_files", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  softwareId: integer("software_id")
+    .notNull()
+    .references(() => software.id, { onDelete: "cascade" }),
+  filename: text("filename").notNull(),
+  originalName: text("original_name").notNull(),
+  mimeType: text("mime_type").notNull().default("application/octet-stream"),
+  sizeBytes: integer("size_bytes").notNull().default(0),
+  relPath: text("rel_path").notNull().default(""),
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),

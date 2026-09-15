@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { AiKeywordsField } from "@/components/AiKeywordsField";
 
 type Equipment = { id: number; name: string };
 
@@ -13,6 +14,7 @@ type Props = {
     equipmentTypeId?: number;
     tags?: string;
     content?: string;
+    aiKeywords?: string;
   };
   submitLabel?: string;
 };
@@ -65,7 +67,6 @@ export function ArticleForm({
   }
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
-    // ensure latest content is in the form field before server action
     const form = e.currentTarget;
     const hidden = form.elements.namedItem("content") as HTMLTextAreaElement | null;
     if (hidden) hidden.value = content;
@@ -107,6 +108,8 @@ export function ArticleForm({
           defaultValue={initial?.tags || ""}
         />
       </label>
+
+      <AiKeywordsField defaultValue={initial?.aiKeywords || ""} />
 
       <div className="space-y-2 rounded-lg border border-dashed border-[var(--border)] bg-white/60 p-3">
         <div className="label mb-0">Nhập từ file (.md / .docx)</div>

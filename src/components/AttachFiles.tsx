@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ConfirmDelete } from "@/components/ConfirmDelete";
+import { deleteAttachment } from "@/app/actions";
 
-const MAX_BYTES = 2 * 1024 * 1024;
-const MAX_ATTACHMENTS = 5;
 const ACCEPT = ".pdf,.docx,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png";
 
 type Attached = { id: number; title: string };
@@ -15,10 +15,23 @@ type Props = {
   articleId?: number;
   caseId?: number;
   canUpload: boolean;
+  /** Editor được xóa từng file đính kèm (không xóa cả bài/tình huống). */
+  canDeleteFile?: boolean;
   files: Attached[];
+  /** Bài viết: 2MB/5. Tình huống: 20MB/10. */
+  maxBytes?: number;
+  maxAttachments?: number;
 };
 
-export function AttachFiles({ articleId, caseId, canUpload, files }: Props) {
+export function AttachFiles({
+  articleId,
+  caseId,
+  canUpload,
+  canDeleteFile = false,
+  files,
+  maxBytes = 2 * 1024 * 1024,
+  maxAttachments = 5,
+}: Props) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -27,6 +40,8 @@ export function AttachFiles({ articleId, caseId, canUpload, files }: Props) {
   const [warnMsg, setWarnMsg] = useState("");
   const [mounted, setMounted] = useState(false);
   const [list, setList] = useState(files);
+
+  const maxMb = Math.round(maxBytes / (1024 * 1024));
 
   useEffect(() => {
     setMounted(true);
@@ -48,13 +63,13 @@ export function AttachFiles({ articleId, caseId, canUpload, files }: Props) {
     let currentCount = list.length;
     try {
       for (const file of Array.from(fileList)) {
-        if (currentCount >= MAX_ATTACHMENTS) {
-          setError(`Tối đa ${MAX_ATTACHMENTS} file đính kèm.`);
+        if (currentCount >= maxAttachments) {
+          setError(`Tối đa ${maxAttachments} file đính kèm.`);
           break;
         }
-        if (file.size > MAX_BYTES) {
+        if (file.size > maxBytes) {
           showWarn(
-            `File “${file.name}” vượt quá 2MB (${(file.size / (1024 * 1024)).toFixed(2)} MB). Hãy thu nhỏ file (nén ảnh hoặc giảm dung lượng PDF/DOCX) rồi chọn lại.`,
+            `File “${file.name}” vượt quá ${maxMb}MB (${(file.size / (1024 * 1024)).toFixed(2)} MB). Hãy thu nhỏ rồi chọn lại.`,
           );
           continue;
         }
@@ -72,7 +87,7 @@ export function AttachFiles({ articleId, caseId, canUpload, files }: Props) {
           if (data.code === "FILE_TOO_LARGE") {
             showWarn(
               data.error ||
-                `File “${file.name}” vượt quá 2MB. Hãy thu nhỏ rồi thử lại.`,
+                `File “${file.name}” vượt quá ${maxMb}MB. Hãy thu nhỏ rồi thử lại.`,
             );
             continue;
           }
@@ -136,20 +151,38 @@ export function AttachFiles({ articleId, caseId, canUpload, files }: Props) {
         Tài liệu đính kèm
       </h2>
       <p className="text-xs text-[var(--muted)]">
-        PDF, DOCX, JPEG, PNG — tối đa {MAX_ATTACHMENTS} file, mỗi file ≤ 2MB.
+        PDF, DOCX, JPEG, PNG — tối đa {maxAttachments} file, mỗi file ≤ {maxMb}
+        MB.
+        {canDeleteFile
+          ? " Có thể xóa từng file nếu tải nhầm (không xóa cả tình huống/bài)."
+          : ""}
       </p>
 
       {list.length > 0 ? (
-        <ul className="space-y-1.5">
+        <ul className="space-y-2">
           {list.map((f) => (
-            <li key={f.id}>
-              <Link
-                href={`/media/${f.id}`}
-                className="text-[var(--brand)] underline"
-              >
-                {f.title}
-              </Link>
-              <span className="ml-2 text-xs text-[var(--muted)]">#{f.id}</span>
+            <li
+              key={f.id}
+              className="flex flex-wrap items-center justify-between gap-2"
+            >
+              <div>
+                <Link
+                  href={`/media/${f.id}`}
+                  className="text-[var(--brand)] underline"
+                >
+                  {f.title}
+                </Link>
+                <span className="ml-2 text-xs text-[var(--muted)]">#{f.id}</span>
+              </div>
+              {canDeleteFile ? (
+                <ConfirmDelete
+                  label="Xóa file"
+                  className="btn btn-secondary text-xs text-red-700"
+                  message={`Xóa file đính kèm “${f.title}”? Chỉ xóa file này.`}
+                  action={deleteAttachment}
+                  hiddenFields={{ id: f.id }}
+                />
+              ) : null}
             </li>
           ))}
         </ul>
@@ -165,7 +198,7 @@ export function AttachFiles({ articleId, caseId, canUpload, files }: Props) {
             accept={ACCEPT}
             multiple
             className="input max-w-md"
-            disabled={busy || list.length >= MAX_ATTACHMENTS}
+            disabled={busy || list.length >= maxAttachments}
             onChange={(e) => void onPick(e.target.files)}
           />
           {busy ? (

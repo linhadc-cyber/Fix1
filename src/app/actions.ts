@@ -10,10 +10,13 @@ import {
   caseTags,
   cases,
   media,
+  software,
+  softwareFiles,
   tags,
 } from "@/db/schema";
 import { canAdmin, canEdit, getSession, requireUser } from "@/lib/session";
 import { uniqueSlug } from "@/lib/utils";
+import { requireAiKeywords } from "@/lib/ai-keywords";
 import { uploadsDir } from "@/db";
 import fs from "node:fs";
 import path from "node:path";
@@ -55,6 +58,7 @@ export async function createArticle(formData: FormData) {
   const user = await requireEditor();
   const title = String(formData.get("title") || "").trim();
   const content = String(formData.get("content") || "");
+  const aiKeywords = requireAiKeywords(formData.get("aiKeywords"));
   const equipmentTypeId = Number(formData.get("equipmentTypeId"));
   const tagNames = String(formData.get("tags") || "")
     .split(",")
@@ -75,6 +79,7 @@ export async function createArticle(formData: FormData) {
       title,
       slug,
       content,
+      aiKeywords,
       equipmentTypeId,
       authorId: user.id,
     })
@@ -107,6 +112,7 @@ export async function updateArticle(formData: FormData) {
   const id = Number(formData.get("id"));
   const title = String(formData.get("title") || "").trim();
   const content = String(formData.get("content") || "");
+  const aiKeywords = requireAiKeywords(formData.get("aiKeywords"));
   const equipmentTypeId = Number(formData.get("equipmentTypeId"));
   const tagNames = String(formData.get("tags") || "")
     .split(",")
@@ -117,6 +123,7 @@ export async function updateArticle(formData: FormData) {
     .set({
       title,
       content,
+      aiKeywords,
       equipmentTypeId,
       updatedAt: new Date().toISOString().slice(0, 19).replace("T", " "),
     })
@@ -161,6 +168,7 @@ export async function createCase(formData: FormData) {
   const cause = String(formData.get("cause") || "");
   const resolution = String(formData.get("resolution") || "");
   const prevention = String(formData.get("prevention") || "");
+  const aiKeywords = requireAiKeywords(formData.get("aiKeywords"));
   const severity = String(formData.get("severity") || "medium") as
     | "low"
     | "medium"
@@ -189,6 +197,7 @@ export async function createCase(formData: FormData) {
       cause,
       resolution,
       prevention,
+      aiKeywords,
       severity,
       equipmentTypeId,
       authorId: user.id,
@@ -216,6 +225,7 @@ export async function updateCase(formData: FormData) {
   const cause = String(formData.get("cause") || "");
   const resolution = String(formData.get("resolution") || "");
   const prevention = String(formData.get("prevention") || "");
+  const aiKeywords = requireAiKeywords(formData.get("aiKeywords"));
   const severity = String(formData.get("severity") || "medium") as
     | "low"
     | "medium"
@@ -234,6 +244,7 @@ export async function updateCase(formData: FormData) {
       cause,
       resolution,
       prevention,
+      aiKeywords,
       severity,
       equipmentTypeId,
       updatedAt: new Date().toISOString().slice(0, 19).replace("T", " "),
@@ -403,4 +414,49 @@ export async function deleteMedia(formData: FormData) {
   }
   revalidatePath("/library");
   redirect("/library?tab=docs");
+}
+
+export async function deleteSoftware(formData: FormData) {
+  const user = await requireUser();
+  if (!user || !canAdmin(user.role)) throw new Error("Chỉ admin mới xóa được");
+  const id = Number(formData.get("id"));
+  const files = db
+    .select()
+    .from(softwareFiles)
+    .where(eq(softwareFiles.softwareId, id))
+    .all();
+  for (const f of files) {
+    const filePath = path.join(process.cwd(), "data", f.relPath);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  }
+  db.delete(software).where(eq(software.id, id)).run();
+  revalidatePath("/");
+  redirect("/?tab=software");
+}
+
+/** Xóa từng file đính kèm bài/tình huống (editor được phép). */
+export async function deleteAttachment(formData: FormData) {
+  const user = await requireUser();
+  if (!user || !canEdit(user.role)) throw new Error("Không có quyền");
+  const id = Number(formData.get("id"));
+  const item = db.select().from(media).where(eq(media.id, id)).get();
+  if (!item) {
+    redirect("/");
+  }
+  const articleId = item.articleId;
+  const caseId = item.caseId;
+  const filePath = item.relPath
+    ? path.join(process.cwd(), "data", item.relPath)
+    : path.join(uploadsDir, item.filename);
+  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  db.delete(media).where(eq(media.id, id)).run();
+  if (caseId) {
+    revalidatePath(`/cases/${caseId}`);
+    redirect(`/cases/${caseId}`);
+  }
+  if (articleId) {
+    revalidatePath(`/articles/${articleId}`);
+    redirect(`/articles/${articleId}`);
+  }
+  redirect("/");
 }

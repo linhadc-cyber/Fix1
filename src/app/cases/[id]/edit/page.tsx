@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { caseTags, cases, equipmentTypes, tags } from "@/db/schema";
 import { updateCase } from "@/app/actions";
+import { AiKeywordsField } from "@/components/AiKeywordsField";
 
 export default async function EditCasePage({
   params,
@@ -38,7 +39,12 @@ export default async function EditCasePage({
         <input type="hidden" name="id" value={id} />
         <label>
           <span className="label">Tiêu đề</span>
-          <input name="title" required className="input" defaultValue={item.title} />
+          <input
+            name="title"
+            required
+            className="input"
+            defaultValue={item.title}
+          />
         </label>
         <div className="grid gap-4 sm:grid-cols-2">
           <label>
@@ -58,7 +64,11 @@ export default async function EditCasePage({
           </label>
           <label>
             <span className="label">Mức độ</span>
-            <select name="severity" className="select" defaultValue={item.severity}>
+            <select
+              name="severity"
+              className="select"
+              defaultValue={item.severity}
+            >
               <option value="low">Thấp</option>
               <option value="medium">Trung bình</option>
               <option value="high">Cao</option>
@@ -74,9 +84,14 @@ export default async function EditCasePage({
             defaultValue={tagList.map((t) => t.name).join(", ")}
           />
         </label>
+        <AiKeywordsField defaultValue={item.aiKeywords || ""} />
         <label>
           <span className="label">Triệu chứng</span>
-          <textarea name="symptoms" className="textarea" defaultValue={item.symptoms} />
+          <textarea
+            name="symptoms"
+            className="textarea"
+            defaultValue={item.symptoms}
+          />
         </label>
         <label>
           <span className="label">Nguyên nhân</span>

@@ -1,0 +1,14 @@
+﻿---
+description: Keyword AI required on all content forms; software and case upload limits
+alwaysApply: true
+---
+
+# Fix1: Keyword AI + Software + quyen xoa
+
+- Every create/edit form for **articles, cases, software** must include `AiKeywordsField` (Keyword AI), **required**, max **200** Unicode characters.
+- Home list search for articles/cases: title, equipment name, `aiKeywords`. Software: name, function, vendor, keywords.
+- **Delete whole** article / case / software: **admin only**. Editors may create/edit.
+- Software uploads: max **5** files; each under 500MB; exe, zip, rar, pdf, docx, jpg, jpeg.
+- Case attachments: max **10** files; each up to **20MB**; PDF/DOCX/JPEG/PNG; editors may delete individual files via ConfirmDelete (5s). Article attachments stay max 2MB / 5 files.
+- Oversized files: warning dialog with **Da xem**.
+- Do not push `data/` or `.env.local` to GitHub.

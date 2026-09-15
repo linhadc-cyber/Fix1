@@ -10,8 +10,10 @@ import { extractTextFromBuffer } from "@/lib/knowledge";
 
 export const runtime = "nodejs";
 
-const MAX_BYTES = 2 * 1024 * 1024;
-const MAX_ATTACHMENTS = 5;
+const ARTICLE_MAX_BYTES = 2 * 1024 * 1024;
+const ARTICLE_MAX_ATTACHMENTS = 5;
+const CASE_MAX_BYTES = 20 * 1024 * 1024;
+const CASE_MAX_ATTACHMENTS = 10;
 
 const ALLOWED_EXT = new Set([".pdf", ".docx", ".jpg", ".jpeg", ".png"]);
 
@@ -55,11 +57,15 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-    if (file.size > MAX_BYTES) {
+
+    const maxBytes = caseId ? CASE_MAX_BYTES : ARTICLE_MAX_BYTES;
+    const maxAttachments = caseId ? CASE_MAX_ATTACHMENTS : ARTICLE_MAX_ATTACHMENTS;
+    const maxLabel = caseId ? "20MB" : "2MB";
+
+    if (file.size > maxBytes) {
       return NextResponse.json(
         {
-          error:
-            "File vượt quá 2MB. Hãy thu nhỏ (nén ảnh / giảm chất lượng PDF) rồi thử lại.",
+          error: `File vượt quá ${maxLabel}. Hãy thu nhỏ rồi thử lại.`,
           code: "FILE_TOO_LARGE",
         },
         { status: 400 },
@@ -105,10 +111,10 @@ export async function POST(request: Request) {
         .from(media)
         .where(eq(media.articleId, articleId))
         .all();
-      if (Number(n) >= MAX_ATTACHMENTS) {
+      if (Number(n) >= maxAttachments) {
         return NextResponse.json(
           {
-            error: `Mỗi bài viết tối đa ${MAX_ATTACHMENTS} file đính kèm`,
+            error: `Mỗi bài viết tối đa ${maxAttachments} file đính kèm`,
             code: "TOO_MANY_ATTACHMENTS",
           },
           { status: 400 },
@@ -135,10 +141,10 @@ export async function POST(request: Request) {
         .from(media)
         .where(eq(media.caseId, caseId))
         .all();
-      if (Number(n) >= MAX_ATTACHMENTS) {
+      if (Number(n) >= maxAttachments) {
         return NextResponse.json(
           {
-            error: `Mỗi tình huống tối đa ${MAX_ATTACHMENTS} file đính kèm`,
+            error: `Mỗi tình huống tối đa ${maxAttachments} file đính kèm`,
             code: "TOO_MANY_ATTACHMENTS",
           },
           { status: 400 },

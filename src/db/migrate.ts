@@ -78,3 +78,66 @@ export function ensureKnowledgeIndex(sqlite: DatabaseSync) {
     // bỏ qua nếu FTS5 không khả dụng
   }
 }
+
+function addColumnIfMissing(
+  sqlite: DatabaseSync,
+  table: string,
+  column: string,
+  ddl: string,
+) {
+  try {
+    const cols = sqlite
+      .prepare(`PRAGMA table_info(${table})`)
+      .all() as { name: string }[];
+    if (!cols.some((c) => c.name === column)) {
+      sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Software catalog + AI keywords trên articles/cases. */
+export function ensureSoftwareTables(sqlite: DatabaseSync) {
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS software (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      function TEXT NOT NULL DEFAULT '',
+      vendor TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
+      ai_keywords TEXT NOT NULL DEFAULT '',
+      uploaded_by_id INTEGER NOT NULL REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS software_files (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      software_id INTEGER NOT NULL REFERENCES software(id) ON DELETE CASCADE,
+      filename TEXT NOT NULL,
+      original_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+      size_bytes INTEGER NOT NULL DEFAULT 0,
+      rel_path TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_software_created
+      ON software(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_software_files_software
+      ON software_files(software_id);
+  `);
+
+  addColumnIfMissing(
+    sqlite,
+    "articles",
+    "ai_keywords",
+    `ai_keywords TEXT NOT NULL DEFAULT ''`,
+  );
+  addColumnIfMissing(
+    sqlite,
+    "cases",
+    "ai_keywords",
+    `ai_keywords TEXT NOT NULL DEFAULT ''`,
+  );
+}

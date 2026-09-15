@@ -3,7 +3,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { drizzle } from "drizzle-orm/node-sqlite";
 import * as schema from "./schema";
-import { ensureChatTables, ensureKnowledgeIndex } from "./migrate";
+import { ensureChatTables, ensureKnowledgeIndex, ensureSoftwareTables } from "./migrate";
 import { setSqlite } from "./sqlite";
 
 const dataDir = path.join(process.cwd(), "data");
@@ -25,6 +25,7 @@ fs.mkdirSync(path.join(uploadsDir, "images"), { recursive: true });
 fs.mkdirSync(path.join(uploadsDir, "videos"), { recursive: true });
 fs.mkdirSync(path.join(uploadsDir, "pdfs"), { recursive: true });
 fs.mkdirSync(path.join(uploadsDir, "docs"), { recursive: true });
+fs.mkdirSync(path.join(uploadsDir, "software"), { recursive: true });
 
 for (const slug of EQUIPMENT_SLUGS) {
   for (const sub of ["articles", "cases", "notes"] as const) {
@@ -38,6 +39,7 @@ sqlite.exec("PRAGMA foreign_keys = ON;");
 setSqlite(sqlite);
 ensureChatTables(sqlite);
 ensureKnowledgeIndex(sqlite);
+ensureSoftwareTables(sqlite);
 
 export const db = drizzle({ client: sqlite, schema });
 export { dataDir, uploadsDir, knowledgeDir, dbPath, EQUIPMENT_SLUGS, sqlite };

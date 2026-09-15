@@ -7,7 +7,8 @@ function isDetailReader(pathname: string) {
   return (
     /^\/articles\/\d+$/.test(pathname) ||
     /^\/cases\/\d+$/.test(pathname) ||
-    /^\/media\/\d+$/.test(pathname)
+    /^\/media\/\d+$/.test(pathname) ||
+    /^\/software\/\d+$/.test(pathname)
   );
 }
 

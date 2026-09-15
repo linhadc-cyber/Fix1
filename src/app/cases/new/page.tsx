@@ -1,7 +1,8 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { db } from "@/db";
 import { equipmentTypes } from "@/db/schema";
 import { createCase } from "@/app/actions";
+import { AiKeywordsField } from "@/components/AiKeywordsField";
 
 export default function NewCasePage() {
   const equipment = db
@@ -51,6 +52,7 @@ export default function NewCasePage() {
           <span className="label">Tags</span>
           <input name="tags" className="input" placeholder="alarm, điện áp" />
         </label>
+        <AiKeywordsField />
         <label>
           <span className="label">Triệu chứng</span>
           <textarea name="symptoms" className="textarea" required />

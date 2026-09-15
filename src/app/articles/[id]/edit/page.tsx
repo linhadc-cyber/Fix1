@@ -45,6 +45,7 @@ export default async function EditArticlePage({
           equipmentTypeId: article.equipmentTypeId,
           tags: tagList.map((t) => t.name).join(", "),
           content: article.content,
+          aiKeywords: article.aiKeywords,
         }}
       />
     </div>

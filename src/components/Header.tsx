@@ -28,8 +28,8 @@ export async function Header() {
                   <Link href="/cases/new" className="nav-link">
                     + Tình huống
                   </Link>
-                  <Link href="/media/upload" className="nav-link">
-                    + Upload
+                  <Link href="/software/new" className="nav-link">
+                    + Software
                   </Link>
                 </>
               ) : null}

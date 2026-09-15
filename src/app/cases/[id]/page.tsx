@@ -136,6 +136,9 @@ export default async function CaseDetailPage({
         <AttachFiles
           caseId={id}
           canUpload={!!canEdit(user?.role)}
+          canDeleteFile={!!canEdit(user?.role)}
+          maxBytes={20 * 1024 * 1024}
+          maxAttachments={10}
           files={files.map((f) => ({ id: f.id, title: f.title }))}
         />
       </div>
