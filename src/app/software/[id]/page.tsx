@@ -2,10 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { software, softwareFiles, users } from "@/db/schema";
-import { canAdmin, requireUser } from "@/lib/session";
+import { equipmentTypes, software, softwareFiles, users } from "@/db/schema";
+import { canAdmin, canEdit, requireUser } from "@/lib/session";
 import { ConfirmDelete } from "@/components/ConfirmDelete";
 import { BackButton } from "@/components/BackButton";
+import { Breadcrumb } from "@/components/Breadcrumb";
+import { SoftwareAttachFiles } from "@/components/SoftwareAttachFiles";
 import { deleteSoftware } from "@/app/actions";
 
 export default async function SoftwareDetailPage({
@@ -25,9 +27,15 @@ export default async function SoftwareDetailPage({
       aiKeywords: software.aiKeywords,
       createdAt: software.createdAt,
       uploader: users.displayName,
+      equipmentName: equipmentTypes.name,
+      equipmentSlug: equipmentTypes.slug,
     })
     .from(software)
     .leftJoin(users, eq(software.uploadedById, users.id))
+    .leftJoin(
+      equipmentTypes,
+      eq(software.equipmentTypeId, equipmentTypes.id),
+    )
     .where(eq(software.id, id))
     .get();
 
@@ -40,28 +48,47 @@ export default async function SoftwareDetailPage({
     .all();
 
   const user = await requireUser();
+  const editor = !!canEdit(user?.role);
+  const fallbackHref = item.equipmentSlug
+    ? `/equipment/${item.equipmentSlug}?section=software`
+    : "/?tab=software";
 
   return (
-    <article className="reader-frame">
-      <div className="reader-meta">
-        <p className="text-sm text-[var(--muted)]">
-          <Link href="/?tab=software">Software</Link>
-          {" · "}
-          <span className="font-medium text-[var(--foreground)]">
-            Mã #{item.id}
-          </span>
-        </p>
-        <h1
-          className="mt-1 text-2xl font-semibold leading-tight sm:text-3xl"
-          style={{ fontFamily: "var(--font-display), Georgia, serif" }}
-        >
-          {item.name}
-        </h1>
-        <p className="mt-1.5 text-sm text-[var(--muted)]">
-          {item.vendor} · {item.uploader} · {item.createdAt}
-        </p>
-        <div className="mt-2.5 flex items-center justify-between gap-3">
-          <BackButton fallbackHref="/?tab=software" />
+    <article className="reader-doc">
+      <Breadcrumb
+        items={[
+          { label: "Trang chủ", href: "/" },
+          ...(item.equipmentSlug
+            ? [
+                {
+                  label: item.equipmentName || "Thiết bị",
+                  href: `/equipment/${item.equipmentSlug}?section=software`,
+                },
+              ]
+            : [
+                { label: "Software", href: "/?tab=software" },
+              ]),
+          { label: item.name },
+        ]}
+      />
+
+      <div className="reader-toolbar zone zone-actions">
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-lg font-semibold leading-tight sm:text-xl">
+            {item.name}
+          </h1>
+          <p className="mt-0.5 truncate text-xs text-[var(--muted)]">
+            #{item.id} · {item.vendor}
+            {item.uploader ? ` · ${item.uploader}` : ""} · {item.createdAt}
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <BackButton fallbackHref={fallbackHref} />
+          {editor ? (
+            <Link href={`/software/${id}/edit`} className="btn btn-secondary">
+              Sửa
+            </Link>
+          ) : null}
           {canAdmin(user?.role) ? (
             <ConfirmDelete
               message={`Xóa software “${item.name}” và toàn bộ file? Thao tác không hoàn tác.`}
@@ -72,19 +99,13 @@ export default async function SoftwareDetailPage({
         </div>
       </div>
 
-      <div className="reader-scroll space-y-3">
-        <div className="card space-y-3">
+      <div className="reader-body space-y-4">
+        <div className="zone zone-content space-y-4">
           <section className="space-y-1">
             <h2 className="text-base font-semibold text-[var(--brand)]">
               Chức năng
             </h2>
             <p className="whitespace-pre-wrap text-base">{item.functionText}</p>
-          </section>
-          <section className="space-y-1">
-            <h2 className="text-base font-semibold text-[var(--brand)]">
-              Keyword AI
-            </h2>
-            <p className="text-base">{item.aiKeywords || "_Chưa có._"}</p>
           </section>
           {item.notes ? (
             <section className="space-y-1">
@@ -96,30 +117,24 @@ export default async function SoftwareDetailPage({
           ) : null}
         </div>
 
-        <div className="card space-y-2">
-          <h2 className="text-base font-semibold text-[var(--brand)]">
-            File đính kèm ({files.length})
-          </h2>
-          {files.length === 0 ? (
-            <p className="text-sm text-[var(--muted)]">Không có file.</p>
-          ) : (
-            <ul className="space-y-2">
-              {files.map((f) => (
-                <li key={f.id} className="flex flex-wrap items-center gap-2">
-                  <a
-                    href={`/api/software/files/${f.id}`}
-                    className="text-[var(--brand)] underline"
-                    download
-                  >
-                    {f.originalName}
-                  </a>
-                  <span className="text-xs text-[var(--muted)]">
-                    {(f.sizeBytes / (1024 * 1024)).toFixed(2)} MB
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+        <div className="zone zone-meta space-y-3">
+          <div>
+            <p className="zone-title">Keyword AI</p>
+            <p className="text-base">{item.aiKeywords || "_Chưa có._"}</p>
+          </div>
+          <div>
+            <p className="zone-title">File phần mềm</p>
+            <SoftwareAttachFiles
+              softwareId={id}
+              canUpload={editor}
+              canDeleteFile={editor}
+              files={files.map((f) => ({
+                id: f.id,
+                originalName: f.originalName,
+                sizeBytes: f.sizeBytes,
+              }))}
+            />
+          </div>
         </div>
       </div>
     </article>

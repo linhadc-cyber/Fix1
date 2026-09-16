@@ -5,8 +5,13 @@ alwaysApply: true
 
 # Fix1: Keyword AI + Software + quyen xoa
 
-- Every create/edit form for **articles, cases, software** must include `AiKeywordsField` (Keyword AI), **required**, max **200** Unicode characters.
+- Every create/edit form for **articles, cases, software** must include `AiKeywordsField` (Keyword AI), **required**, max **2000** Unicode characters.
 - Home list search for articles/cases: title, equipment name, `aiKeywords`. Software: name, function, vendor, keywords.
+- Software **Keyword AI** + name/vendor/function are indexed into `knowledge_chunks` so Ask AI can point to the right `/software/[id]` (e.g. hỏi “E2001” → Software E2001).
+- Phân loại thiết bị (thứ tự cố định): **Tủ nạp · Acquy · Inverter · Giám sát AQ · Giám sát DC · UPS · Các sản phẩm khác**. Mỗi thiết bị có 3 loại nội dung: bài viết / tình huống / software.
+- Software must have **equipmentTypeId**; on each equipment page the third tab is **Software** (not “Tài liệu”). Creating software for a device lists it under that device.
+- Keyword AI: Upload `.md` để nạp nhanh; nút **Xóa Keyword** dùng `ConfirmDelete` (5s). Content fields on create/edit use clear buttons with the same 5s confirm.
+- Every search box must have **Tìm** and a **Xóa** button beside it that clears all typed text in the input immediately (and clears active URL filter if any). Use `HomeSearchForm` on the home page.
 - **Delete whole** article / case / software: **admin only**. Editors may create/edit.
 - Software uploads: max **5** files; each under 500MB; exe, zip, rar, pdf, docx, jpg, jpeg.
 - Case attachments: max **10** files; each up to **20MB**; PDF/DOCX/JPEG/PNG; editors may delete individual files via ConfirmDelete (5s). Article attachments stay max 2MB / 5 files.

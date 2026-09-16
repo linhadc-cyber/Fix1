@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { count, eq } from "drizzle-orm";
 import { db, uploadsDir } from "@/db";
 import { software, softwareFiles } from "@/db/schema";
 import { canEdit, requireUser } from "@/lib/session";
-import { requireAiKeywords } from "@/lib/ai-keywords";
 
 export const runtime = "nodejs";
 
-const MAX_BYTES = 500 * 1024 * 1024; // exclusive upper bound: size < this
+const MAX_BYTES = 500 * 1024 * 1024;
 const MAX_FILES = 5;
 const ALLOWED_EXT = new Set([
   ".exe",
@@ -21,54 +21,50 @@ const ALLOWED_EXT = new Set([
   ".jpeg",
 ]);
 
-export async function POST(request: Request) {
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
   const user = await requireUser();
   if (!user || !canEdit(user.role)) {
     return NextResponse.json({ error: "Không có quyền" }, { status: 403 });
   }
 
+  const { id: idStr } = await context.params;
+  const softwareId = Number(idStr);
+  const item = db
+    .select()
+    .from(software)
+    .where(eq(software.id, softwareId))
+    .get();
+  if (!item) {
+    return NextResponse.json({ error: "Không tìm thấy software" }, { status: 404 });
+  }
+
   try {
     const form = await request.formData();
-    const name = String(form.get("name") || "").trim();
-    const functionText = String(form.get("functionText") || "").trim();
-    const vendor = String(form.get("vendor") || "").trim();
-    const notes = String(form.get("notes") || "").trim();
-    const equipmentTypeId = Number(form.get("equipmentTypeId"));
+    const rawFiles = form
+      .getAll("files")
+      .filter((f): f is File => f instanceof File && f.size > 0);
 
-    let aiKeywords = "";
-    try {
-      aiKeywords = requireAiKeywords(form.get("aiKeywords"));
-    } catch (e) {
-      return NextResponse.json(
-        { error: e instanceof Error ? e.message : "Keyword AI không hợp lệ" },
-        { status: 400 },
-      );
-    }
-
-    if (!name || !functionText || !vendor) {
-      return NextResponse.json(
-        { error: "Thiếu tên, chức năng hoặc hãng sản xuất" },
-        { status: 400 },
-      );
-    }
-    if (!Number.isFinite(equipmentTypeId) || equipmentTypeId <= 0) {
-      return NextResponse.json(
-        { error: "Hãy chọn loại thiết bị" },
-        { status: 400 },
-      );
-    }
-
-    const rawFiles = form.getAll("files").filter((f): f is File => f instanceof File);
     if (rawFiles.length === 0) {
       return NextResponse.json(
         { error: "Hãy chọn ít nhất 1 file" },
         { status: 400 },
       );
     }
-    if (rawFiles.length > MAX_FILES) {
+
+    const existingCount = Number(
+      db
+        .select({ n: count() })
+        .from(softwareFiles)
+        .where(eq(softwareFiles.softwareId, softwareId))
+        .get()?.n || 0,
+    );
+    if (existingCount + rawFiles.length > MAX_FILES) {
       return NextResponse.json(
         {
-          error: `Mỗi lần tối đa ${MAX_FILES} file`,
+          error: `Tối đa ${MAX_FILES} file (đang có ${existingCount})`,
           code: "TOO_MANY_FILES",
         },
         { status: 400 },
@@ -96,55 +92,44 @@ export async function POST(request: Request) {
       }
     }
 
-    const row = db
-      .insert(software)
-      .values({
-        name,
-        functionText,
-        vendor,
-        notes,
-        aiKeywords,
-        equipmentTypeId,
-        uploadedById: user.id,
-      })
-      .returning()
-      .get();
-
     const softDir = path.join(uploadsDir, "software");
     fs.mkdirSync(softDir, { recursive: true });
 
+    const added: { id: number; originalName: string; sizeBytes: number }[] = [];
     for (const file of rawFiles) {
       const ext = path.extname(file.name).toLowerCase() || ".bin";
       const filename = `${randomUUID()}${ext}`;
-      const relPath = path.join("uploads", "software", filename).replace(/\\/g, "/");
+      const relPath = path
+        .join("uploads", "software", filename)
+        .replace(/\\/g, "/");
       const absPath = path.join(uploadsDir, "software", filename);
       const buffer = Buffer.from(await file.arrayBuffer());
       fs.writeFileSync(absPath, buffer);
-      db.insert(softwareFiles)
+      const row = db
+        .insert(softwareFiles)
         .values({
-          softwareId: row.id,
+          softwareId,
           filename,
           originalName: file.name,
           mimeType: file.type || "application/octet-stream",
           sizeBytes: buffer.length,
           relPath,
         })
-        .run();
+        .returning()
+        .get();
+      added.push({
+        id: row.id,
+        originalName: row.originalName,
+        sizeBytes: row.sizeBytes,
+      });
     }
 
-    try {
-      const { rebuildKnowledgeIndex } = await import("@/lib/ai/knowledge-index");
-      rebuildKnowledgeIndex();
-    } catch {
-      /* ignore */
-    }
-
-    return NextResponse.json({ id: row.id });
+    return NextResponse.json({ files: added });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("[fix1] software upload failed:", err);
+    console.error("[fix1] software file attach failed:", err);
     return NextResponse.json(
-      { error: `Upload software thất bại: ${msg}` },
+      { error: `Đính kèm file thất bại: ${msg}` },
       { status: 500 },
     );
   }

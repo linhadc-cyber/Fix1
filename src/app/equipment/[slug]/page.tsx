@@ -1,10 +1,13 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { articles, cases, equipmentTypes, media } from "@/db/schema";
+import { articles, cases, equipmentTypes, software } from "@/db/schema";
 import { severityLabel } from "@/lib/utils";
 import { BackButton } from "@/components/BackButton";
+import { Breadcrumb } from "@/components/Breadcrumb";
+import { canEdit, requireUser } from "@/lib/session";
+import { resolveEquipmentSlug } from "@/lib/equipment-catalog";
 
 const PAGE_SIZE = 10;
 
@@ -63,10 +66,25 @@ export default async function EquipmentPage({
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ section?: string; page?: string }>;
 }) {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
   const { section: rawSection, page: rawPage } = await searchParams;
+  const resolved = resolveEquipmentSlug(rawSlug);
+  if (resolved !== rawSlug) {
+    const qs = new URLSearchParams();
+    if (rawSection) qs.set("section", rawSection);
+    if (rawPage) qs.set("page", rawPage);
+    const q = qs.toString();
+    redirect(`/equipment/${resolved}${q ? `?${q}` : ""}`);
+  }
+  const slug = resolved;
   const section =
-    rawSection === "cases" || rawSection === "docs" ? rawSection : "articles";
+    rawSection === "cases" ||
+    rawSection === "software" ||
+    rawSection === "docs"
+      ? rawSection === "docs"
+        ? "software"
+        : rawSection
+      : "articles";
   const pageNum = Math.max(1, Number(rawPage) || 1);
 
   const equipment = db
@@ -75,6 +93,8 @@ export default async function EquipmentPage({
     .where(eq(equipmentTypes.slug, slug))
     .get();
   if (!equipment) notFound();
+
+  const user = await requireUser();
 
   const articleList = db
     .select()
@@ -90,33 +110,36 @@ export default async function EquipmentPage({
     .orderBy(desc(cases.updatedAt))
     .all();
 
-  const mediaList = db
+  const softwareList = db
     .select()
-    .from(media)
-    .where(eq(media.equipmentTypeId, equipment.id))
-    .orderBy(desc(media.createdAt))
+    .from(software)
+    .where(eq(software.equipmentTypeId, equipment.id))
+    .orderBy(desc(software.createdAt))
     .all();
 
   const articlesPage = paginate(articleList, pageNum);
   const casesPage = paginate(caseList, pageNum);
-  const docsPage = paginate(mediaList, pageNum);
+  const softwarePage = paginate(softwareList, pageNum);
 
   const sections = [
     { key: "articles", label: `Bài viết (${articleList.length})` },
     { key: "cases", label: `Tình huống (${caseList.length})` },
-    { key: "docs", label: `Tài liệu (${mediaList.length})` },
+    { key: "software", label: `Software (${softwareList.length})` },
   ] as const;
 
   return (
-    <div className="space-y-6">
+    <div className="page-stack">
       <div>
-        <p className="text-sm text-[var(--muted)]">
-          <Link href="/">Trang chủ</Link> / Thiết bị
-        </p>
+        <Breadcrumb
+          items={[
+            { label: "Trang chủ", href: "/" },
+            { label: equipment.name },
+          ]}
+        />
         <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="text-2xl font-semibold">{equipment.name}</h1>
-            <p className="mt-1 text-sm text-[var(--muted)]">
+            <p className="mt-2 text-sm text-[var(--muted)]">
               {equipment.description}
             </p>
           </div>
@@ -124,23 +147,34 @@ export default async function EquipmentPage({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {sections.map((s) => (
-          <Link
-            key={s.key}
-            href={`/equipment/${slug}?section=${s.key}`}
-            className={`btn ${section === s.key ? "btn-primary" : "btn-secondary"}`}
-          >
-            {s.label}
-          </Link>
-        ))}
-      </div>
+      <section className="zone zone-filter" aria-label="Loại nội dung">
+        <p className="zone-title">Loại nội dung</p>
+        <div className="flex flex-wrap gap-2">
+          {sections.map((s) => (
+            <Link
+              key={s.key}
+              href={`/equipment/${slug}?section=${s.key}`}
+              className={`chip ${section === s.key ? "chip-active" : ""}`}
+            >
+              {s.label}
+            </Link>
+          ))}
+        </div>
+      </section>
 
       {section === "articles" ? (
-        <section>
-          <p className="mb-2 text-xs text-[var(--muted)]">
-            Mới nhất lên trên · {PAGE_SIZE} mục / trang
-          </p>
+        <section className="zone zone-list">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="zone-title mb-0">Bài viết · {PAGE_SIZE}/trang</p>
+            {canEdit(user?.role) ? (
+              <Link
+                href={`/articles/new?equipmentTypeId=${equipment.id}`}
+                className="btn btn-primary text-sm"
+              >
+                + Bài viết
+              </Link>
+            ) : null}
+          </div>
           <div className="space-y-2">
             {articlesPage.total === 0 ? (
               <p className="text-sm text-[var(--muted)]">Chưa có bài.</p>
@@ -167,10 +201,18 @@ export default async function EquipmentPage({
       ) : null}
 
       {section === "cases" ? (
-        <section>
-          <p className="mb-2 text-xs text-[var(--muted)]">
-            Mới nhất lên trên · {PAGE_SIZE} mục / trang
-          </p>
+        <section className="zone zone-list">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="zone-title mb-0">Tình huống · {PAGE_SIZE}/trang</p>
+            {canEdit(user?.role) ? (
+              <Link
+                href={`/cases/new?equipmentTypeId=${equipment.id}`}
+                className="btn btn-primary text-sm"
+              >
+                + Tình huống
+              </Link>
+            ) : null}
+          </div>
           <div className="space-y-2">
             {casesPage.total === 0 ? (
               <p className="text-sm text-[var(--muted)]">Chưa có tình huống.</p>
@@ -198,34 +240,49 @@ export default async function EquipmentPage({
         </section>
       ) : null}
 
-      {section === "docs" ? (
-        <section>
-          <p className="mb-2 text-xs text-[var(--muted)]">
-            Mới nhất lên trên · {PAGE_SIZE} mục / trang
-          </p>
+      {section === "software" ? (
+        <section className="zone zone-list">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="zone-title mb-0">Software · {PAGE_SIZE}/trang</p>
+            {canEdit(user?.role) ? (
+              <Link
+                href={`/software/new?equipmentTypeId=${equipment.id}`}
+                className="btn btn-primary text-sm"
+              >
+                + Software
+              </Link>
+            ) : null}
+          </div>
           <div className="space-y-2">
-            {docsPage.total === 0 ? (
-              <p className="text-sm text-[var(--muted)]">Chưa có tài liệu.</p>
+            {softwarePage.total === 0 ? (
+              <p className="text-sm text-[var(--muted)]">
+                Chưa có software cho thiết bị này.
+              </p>
             ) : (
-              docsPage.slice.map((m) => (
+              softwarePage.slice.map((s) => (
                 <a
-                  key={m.id}
-                  href={`/media/${m.id}`}
+                  key={s.id}
+                  href={`/software/${s.id}`}
                   className="card card-interactive block"
                 >
-                  <div className="font-medium">{m.title}</div>
+                  <div className="font-medium">{s.name}</div>
                   <div className="text-sm text-[var(--muted)]">
-                    {m.kind} · {m.createdAt}
+                    {s.vendor} · {s.createdAt}
                   </div>
+                  {s.functionText ? (
+                    <div className="mt-1 line-clamp-2 text-sm text-[var(--muted)]">
+                      {s.functionText}
+                    </div>
+                  ) : null}
                 </a>
               ))
             )}
           </div>
           <Pager
             slug={slug}
-            section="docs"
-            page={docsPage.page}
-            totalPages={docsPage.totalPages}
+            section="software"
+            page={softwarePage.page}
+            totalPages={softwarePage.totalPages}
           />
         </section>
       ) : null}

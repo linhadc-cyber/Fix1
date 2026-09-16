@@ -4,7 +4,7 @@ import { searchKnowledgeChunks } from "@/lib/ai/knowledge-index";
 import type { FocusSource } from "@/lib/ai/session-memory";
 
 export type PackedDoc = {
-  type: "article" | "case" | "doc";
+  type: "article" | "case" | "doc" | "software";
   id: number;
   title: string;
   href: string;
@@ -43,21 +43,33 @@ function loadDocumentBody(
   if (type === "article") {
     const row = sqlite
       .prepare(
-        `SELECT a.id, a.title, a.content,
+        `SELECT a.id, a.title, a.content, a.ai_keywords,
                 coalesce(e.name,'') AS equipment
          FROM articles a
          LEFT JOIN equipment_types e ON e.id = a.equipment_type_id
          WHERE a.id = ?`,
       )
       .get(id) as
-      | { id: number; title: string; content: string; equipment: string }
+      | {
+          id: number;
+          title: string;
+          content: string;
+          ai_keywords: string;
+          equipment: string;
+        }
       | undefined;
     if (!row) return null;
     return {
       title: row.title,
       href: `/articles/${row.id}`,
       equipment: row.equipment,
-      body: `# ${row.title}\n\n${row.content || ""}`,
+      body: [
+        `# ${row.title}`,
+        row.ai_keywords?.trim() ? `Keyword AI: ${row.ai_keywords}` : "",
+        row.content || "",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
     };
   }
 
@@ -65,7 +77,7 @@ function loadDocumentBody(
     const row = sqlite
       .prepare(
         `SELECT c.id, c.title, c.symptoms, c.cause, c.resolution, c.prevention,
-                coalesce(e.name,'') AS equipment
+                c.ai_keywords, coalesce(e.name,'') AS equipment
          FROM cases c
          LEFT JOIN equipment_types e ON e.id = c.equipment_type_id
          WHERE c.id = ?`,
@@ -78,6 +90,7 @@ function loadDocumentBody(
           cause: string;
           resolution: string;
           prevention: string;
+          ai_keywords: string;
           equipment: string;
         }
       | undefined;
@@ -88,11 +101,52 @@ function loadDocumentBody(
       equipment: row.equipment,
       body: [
         `# ${row.title}`,
+        row.ai_keywords?.trim() ? `Keyword AI: ${row.ai_keywords}` : "",
         `Triệu chứng: ${row.symptoms}`,
         `Nguyên nhân: ${row.cause}`,
         `Xử lý: ${row.resolution}`,
         `Phòng ngừa: ${row.prevention}`,
-      ].join("\n\n"),
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+    };
+  }
+
+  if (type === "software") {
+    const row = sqlite
+      .prepare(
+        `SELECT s.id, s.name, s.function, s.vendor, s.notes, s.ai_keywords,
+                coalesce(e.name,'') AS equipment
+         FROM software s
+         LEFT JOIN equipment_types e ON e.id = s.equipment_type_id
+         WHERE s.id = ?`,
+      )
+      .get(id) as
+      | {
+          id: number;
+          name: string;
+          function: string;
+          vendor: string;
+          notes: string;
+          ai_keywords: string;
+          equipment: string;
+        }
+      | undefined;
+    if (!row) return null;
+    return {
+      title: row.name,
+      href: `/software/${row.id}`,
+      equipment: row.equipment || row.vendor || "",
+      body: [
+        `# ${row.name}`,
+        row.ai_keywords?.trim() ? `Keyword AI: ${row.ai_keywords}` : "",
+        row.equipment ? `Thiết bị: ${row.equipment}` : "",
+        `Hãng: ${row.vendor || ""}`,
+        `Chức năng: ${row.function || ""}`,
+        row.notes?.trim() ? `Ghi chú / hướng dẫn: ${row.notes}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
     };
   }
 
@@ -131,7 +185,6 @@ function packLongDocument(body: string, tokens: string[], budget: number) {
     .filter(Boolean);
 
   if (parts.length <= 1) {
-    // Cửa sổ quanh token
     const lower = body.toLowerCase();
     const wins: { start: number; end: number; score: number }[] = [];
     for (const t of tokens) {
@@ -198,7 +251,6 @@ function packLongDocument(body: string, tokens: string[], budget: number) {
 
   const useParts = chosen.length ? chosen : scored.slice(0, 3);
   let text = "";
-  // Mục lục ngắn
   const outline = parts
     .filter((p) => /^#{1,3}\s/.test(p) || p.length < 80)
     .slice(0, 20)
@@ -234,7 +286,7 @@ export function selectAndPackDocuments(opts: {
   const uniq = [...new Set(tokens.filter(Boolean))].slice(0, 12);
 
   type Cand = {
-    type: "article" | "case" | "doc";
+    type: PackedDoc["type"];
     id: number;
     score: number;
     title: string;
@@ -343,7 +395,9 @@ export function buildDocPromptContext(docs: PackedDoc[]) {
           ? `Bài #${d.id}`
           : d.type === "case"
             ? `Tình huống #${d.id}`
-            : `Tài liệu #${d.id}`;
+            : d.type === "software"
+              ? `Software #${d.id}`
+              : `Tài liệu #${d.id}`;
       const how =
         d.mode === "full"
           ? "TOÀN BỘ nội dung nguồn (Fix1 đã chỉ đúng tài liệu này)"

@@ -1,4 +1,5 @@
 import { AskChat } from "@/components/AskChat";
+import { Breadcrumb } from "@/components/Breadcrumb";
 import { hasAiKey, resolveAiConfig } from "@/lib/ai/ask";
 
 export default async function AskPage({
@@ -13,7 +14,13 @@ export default async function AskPage({
     : undefined;
 
   return (
-    <div className="ask-page w-full">
+    <div className="ask-page w-full gap-2">
+      <Breadcrumb
+        items={[
+          { label: "Trang chủ", href: "/" },
+          { label: "Hỏi AI" },
+        ]}
+      />
       <AskChat
         hasKey={hasAiKey()}
         modelLabel={modelLabel}

@@ -141,6 +141,9 @@ export const software = sqliteTable("software", {
   vendor: text("vendor").notNull().default(""),
   notes: text("notes").notNull().default(""),
   aiKeywords: text("ai_keywords").notNull().default(""),
+  equipmentTypeId: integer("equipment_type_id").references(
+    () => equipmentTypes.id,
+  ),
   uploadedById: integer("uploaded_by_id")
     .notNull()
     .references(() => users.id),

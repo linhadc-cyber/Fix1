@@ -44,25 +44,19 @@ export default async function MediaDetailPage({
     : "/?tab=docs";
 
   return (
-    <article className="reader-frame">
-      <div className="reader-meta">
-        <p className="text-sm text-[var(--muted)]">
-          <span className="font-medium text-[var(--foreground)]">
-            Mã #{item.id}
-          </span>
-          {item.equipmentName ? ` · ${item.equipmentName}` : ""}
-        </p>
-        <h1
-          className="mt-1 text-2xl font-semibold leading-tight sm:text-3xl"
-          style={{ fontFamily: "var(--font-display), Georgia, serif" }}
-        >
-          {item.title}
-        </h1>
-        <p className="mt-1.5 text-sm text-[var(--muted)]">
-          {item.kind} · {item.originalName} ·{" "}
-          {(item.sizeBytes / 1024).toFixed(1)} KB · {item.uploader}
-        </p>
-        <div className="mt-2.5 flex items-center justify-between gap-3">
+    <article className="reader-doc">
+      <div className="reader-toolbar zone zone-actions">
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-lg font-semibold leading-tight sm:text-xl">
+            {item.title}
+          </h1>
+          <p className="mt-0.5 truncate text-xs text-[var(--muted)]">
+            #{item.id}
+            {item.equipmentName ? ` · ${item.equipmentName}` : ""} · {item.kind}{" "}
+            · {(item.sizeBytes / 1024).toFixed(1)} KB
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           <BackButton fallbackHref={fallbackHref} />
           {canEdit(user?.role) ? (
             <ConfirmDelete
@@ -75,7 +69,7 @@ export default async function MediaDetailPage({
         </div>
       </div>
 
-      <div className="reader-scroll space-y-3">
+      <div className="reader-body space-y-3">
         {item.summary ? (
           <div className="card space-y-1">
             <h2 className="text-base font-semibold text-[var(--brand)]">

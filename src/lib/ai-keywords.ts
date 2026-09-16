@@ -1,5 +1,5 @@
-/** Keyword AI — tối đa 200 ký tự Unicode (code points). */
-export const AI_KEYWORDS_MAX = 200;
+/** Keyword AI — tối đa 2000 ký tự Unicode (code points). */
+export const AI_KEYWORDS_MAX = 2000;
 
 export function charCount(s: string): number {
   return Array.from(s).length;

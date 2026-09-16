@@ -10,9 +10,11 @@ import {
   tags,
   users,
 } from "@/db/schema";
-import { Markdown } from "@/components/Markdown";
+import { Markdown, extractMarkdownToc } from "@/components/Markdown";
+import { ArticleToc } from "@/components/ArticleToc";
 import { ConfirmDelete } from "@/components/ConfirmDelete";
 import { BackButton } from "@/components/BackButton";
+import { Breadcrumb } from "@/components/Breadcrumb";
 import { AttachFiles } from "@/components/AttachFiles";
 import { canAdmin, canEdit, requireUser } from "@/lib/session";
 import { deleteArticle } from "@/app/actions";
@@ -55,50 +57,44 @@ export default async function ArticleDetailPage({
   const fallbackHref = article.equipmentSlug
     ? `/equipment/${article.equipmentSlug}?section=articles`
     : "/?tab=articles";
+  const toc = extractMarkdownToc(article.content || "");
+  const hasToc = toc.length >= 2;
 
   return (
-    <article className="reader-frame">
-      <div className="reader-meta">
-        <p className="text-sm text-[var(--muted)]">
-          <Link href="/">Trang chủ</Link> /{" "}
-          <Link href={`/equipment/${article.equipmentSlug}`}>
-            {article.equipmentName}
-          </Link>
-          {" · "}
-          <span className="font-medium text-[var(--foreground)]">
-            Mã #{article.id}
-          </span>
-        </p>
-        <h1
-          className="mt-1 text-2xl font-semibold leading-tight sm:text-3xl"
-          style={{ fontFamily: "var(--font-display), Georgia, serif" }}
-        >
-          {article.title}
-        </h1>
-        <p className="mt-1.5 text-sm text-[var(--muted)]">
-          {article.authorName} · cập nhật {article.updatedAt}
-        </p>
-        {tagList.length > 0 ? (
-          <div className="mt-2 flex flex-wrap gap-2">
-            {tagList.map((t) => (
-              <span
-                key={t.name}
-                className="rounded bg-[var(--bg-soft)] px-2 py-0.5 text-xs"
-              >
-                {t.name}
-              </span>
-            ))}
-          </div>
-        ) : null}
-        <div className="mt-2.5 flex items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <BackButton fallbackHref={fallbackHref} />
-            {canEdit(user?.role) ? (
-              <Link href={`/articles/${id}/edit`} className="btn btn-secondary">
-                Sửa
-              </Link>
-            ) : null}
-          </div>
+    <article className="reader-doc">
+      <Breadcrumb
+        items={[
+          { label: "Trang chủ", href: "/" },
+          ...(article.equipmentSlug
+            ? [
+                {
+                  label: article.equipmentName || "Thiết bị",
+                  href: `/equipment/${article.equipmentSlug}`,
+                },
+              ]
+            : []),
+          { label: article.title },
+        ]}
+      />
+
+      <div className="reader-toolbar zone zone-actions">
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-lg font-semibold leading-tight sm:text-xl">
+            {article.title}
+          </h1>
+          <p className="mt-0.5 truncate text-xs text-[var(--muted)]">
+            #{article.id}
+            {article.authorName ? ` · ${article.authorName}` : ""} ·{" "}
+            {article.updatedAt}
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <BackButton fallbackHref={fallbackHref} />
+          {canEdit(user?.role) ? (
+            <Link href={`/articles/${id}/edit`} className="btn btn-secondary">
+              Sửa
+            </Link>
+          ) : null}
           {canAdmin(user?.role) ? (
             <ConfirmDelete
               message={`Xóa bài viết “${article.title}”? Thao tác không hoàn tác.`}
@@ -109,16 +105,33 @@ export default async function ArticleDetailPage({
         </div>
       </div>
 
-      <div className="reader-scroll space-y-3">
-        <div className="card">
-          <Markdown content={article.content || "_Chưa có nội dung._"} />
+      <div className={`reader-layout ${hasToc ? "has-toc" : ""}`}>
+        {hasToc ? <ArticleToc items={toc} /> : null}
+        <div className="reader-body space-y-4">
+          {tagList.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {tagList.map((t) => (
+                <span
+                  key={t.name}
+                  className="rounded bg-[var(--bg-soft)] px-2 py-0.5 text-xs"
+                >
+                  {t.name}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          <div className="zone zone-content">
+            <Markdown content={article.content || "_Chưa có nội dung._"} />
+          </div>
+          <div className="zone zone-meta">
+            <p className="zone-title">File đính kèm</p>
+            <AttachFiles
+              articleId={id}
+              canUpload={!!canEdit(user?.role)}
+              files={files.map((f) => ({ id: f.id, title: f.title }))}
+            />
+          </div>
         </div>
-
-        <AttachFiles
-          articleId={id}
-          canUpload={!!canEdit(user?.role)}
-          files={files.map((f) => ({ id: f.id, title: f.title }))}
-        />
       </div>
     </article>
   );

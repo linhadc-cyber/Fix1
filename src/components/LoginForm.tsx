@@ -35,11 +35,9 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="login-card animate-rise">
+    <form onSubmit={onSubmit} className="login-card">
       <div className="mb-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--brand)]">
-          Fix1
-        </p>
+        <p className="zone-title mb-0">Fix1</p>
         <h1 className="mt-1 text-2xl font-semibold text-[var(--foreground)]">
           Đăng nhập
         </h1>

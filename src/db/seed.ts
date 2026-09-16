@@ -2,64 +2,35 @@ import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { db } from "./index";
 import { equipmentTypes, users } from "./schema";
-
-const EQUIPMENT = [
-  {
-    slug: "tu-chinh-luu",
-    name: "Tủ chỉnh lưu",
-    description: "Hệ thống chỉnh lưu / rectifier cabinet",
-    sortOrder: 1,
-  },
-  {
-    slug: "inverter",
-    name: "Inverter",
-    description: "Bộ biến tần / inverter",
-    sortOrder: 2,
-  },
-  {
-    slug: "bacs",
-    name: "Giám sát acquy Online BACS",
-    description: "Battery Analysis & Care System",
-    sortOrder: 3,
-  },
-  {
-    slug: "dossena",
-    name: "Giám sát chạm đất Dossena",
-    description: "Hệ thống giám sát cách điện / chạm đất Dossena",
-    sortOrder: 4,
-  },
-  {
-    slug: "nguon-1-chieu",
-    name: "Bộ cấp nguồn 1 chiều",
-    description: "DC power supply / nguồn DC",
-    sortOrder: 5,
-  },
-  {
-    slug: "ac-quy",
-    name: "Ắc quy",
-    description: "Pin / ắc quy dự phòng",
-    sortOrder: 6,
-  },
-  {
-    slug: "chung",
-    name: "Kiến thức chung",
-    description: "Tài liệu dùng chung nhiều loại thiết bị",
-    sortOrder: 99,
-  },
-] as const;
+import { EQUIPMENT_CATALOG } from "@/lib/equipment-catalog";
 
 async function seed() {
-  for (const item of EQUIPMENT) {
+  for (const item of EQUIPMENT_CATALOG) {
     const existing = db
       .select()
       .from(equipmentTypes)
       .where(eq(equipmentTypes.slug, item.slug))
       .get();
     if (!existing) {
-      db.insert(equipmentTypes).values(item).run();
+      db.insert(equipmentTypes)
+        .values({
+          slug: item.slug,
+          name: item.name,
+          description: item.description,
+          sortOrder: item.sortOrder,
+        })
+        .run();
       console.log(`+ Thiết bị: ${item.name}`);
     } else {
-      console.log(`= Thiết bị đã có: ${item.name}`);
+      db.update(equipmentTypes)
+        .set({
+          name: item.name,
+          description: item.description,
+          sortOrder: item.sortOrder,
+        })
+        .where(eq(equipmentTypes.id, existing.id))
+        .run();
+      console.log(`= Thiết bị: ${item.name}`);
     }
   }
 

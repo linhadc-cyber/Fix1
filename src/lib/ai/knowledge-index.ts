@@ -1,5 +1,7 @@
 import { getSqlite } from "@/db/sqlite";
 
+export type KnowledgeSourceType = "article" | "case" | "doc" | "software";
+
 type ChunkRow = {
   source_type: string;
   source_id: number;
@@ -69,6 +71,11 @@ function hasFts() {
   }
 }
 
+function keywordBlock(keywords: string | null | undefined) {
+  const k = String(keywords || "").trim();
+  return k ? `Keyword AI: ${k}` : "";
+}
+
 /** Rebuild toàn bộ chỉ mục kiến thức. */
 export function rebuildKnowledgeIndex() {
   const sqlite = getSqlite();
@@ -85,17 +92,21 @@ export function rebuildKnowledgeIndex() {
 
   const arts = sqlite
     .prepare(
-      "SELECT id, title, content, equipment_type_id FROM articles",
+      "SELECT id, title, content, ai_keywords, equipment_type_id FROM articles",
     )
     .all() as {
     id: number;
     title: string;
     content: string;
+    ai_keywords: string;
     equipment_type_id: number;
   }[];
 
   for (const a of arts) {
-    const pieces = splitIntoChunks(`# ${a.title}\n\n${a.content}`);
+    const kw = keywordBlock(a.ai_keywords);
+    const pieces = splitIntoChunks(
+      [`# ${a.title}`, kw, a.content || ""].filter(Boolean).join("\n\n"),
+    );
     pieces.forEach((chunk, i) => {
       rows.push({
         source_type: "article",
@@ -111,7 +122,7 @@ export function rebuildKnowledgeIndex() {
 
   const caseRows = sqlite
     .prepare(
-      `SELECT id, title, symptoms, cause, resolution, prevention, equipment_type_id
+      `SELECT id, title, symptoms, cause, resolution, prevention, ai_keywords, equipment_type_id
        FROM cases`,
     )
     .all() as {
@@ -121,17 +132,21 @@ export function rebuildKnowledgeIndex() {
     cause: string;
     resolution: string;
     prevention: string;
+    ai_keywords: string;
     equipment_type_id: number;
   }[];
 
   for (const c of caseRows) {
     const body = [
       `# ${c.title}`,
+      keywordBlock(c.ai_keywords),
       `Triệu chứng: ${c.symptoms}`,
       `Nguyên nhân: ${c.cause}`,
       `Xử lý: ${c.resolution}`,
       `Phòng ngừa: ${c.prevention}`,
-    ].join("\n");
+    ]
+      .filter(Boolean)
+      .join("\n\n");
     splitIntoChunks(body).forEach((chunk, i) => {
       rows.push({
         source_type: "case",
@@ -183,6 +198,58 @@ export function rebuildKnowledgeIndex() {
     });
   }
 
+  // Software: tên + Keyword AI là điểm chỉ chính cho AI
+  let softRows: {
+    id: number;
+    name: string;
+    function: string;
+    vendor: string;
+    notes: string;
+    ai_keywords: string;
+    equipment_type_id: number | null;
+  }[] = [];
+  try {
+    softRows = sqlite
+      .prepare(
+        `SELECT id, name, function, vendor, notes, ai_keywords, equipment_type_id
+         FROM software`,
+      )
+      .all() as typeof softRows;
+  } catch {
+    softRows = [];
+  }
+
+  for (const s of softRows) {
+    const kw = keywordBlock(s.ai_keywords);
+    const eqName = s.equipment_type_id
+      ? equipmentById.get(s.equipment_type_id) || ""
+      : "";
+    const body = [
+      `# ${s.name}`,
+      kw,
+      s.ai_keywords?.trim()
+        ? `Từ khóa chỉ điểm: ${s.name} ${s.ai_keywords}`
+        : `Từ khóa chỉ điểm: ${s.name}`,
+      eqName ? `Thiết bị: ${eqName}` : "",
+      `Hãng: ${s.vendor || ""}`,
+      `Chức năng: ${s.function || ""}`,
+      s.notes?.trim() ? `Ghi chú / hướng dẫn: ${s.notes}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    splitIntoChunks(body).forEach((chunk, i) => {
+      rows.push({
+        source_type: "software",
+        source_id: s.id,
+        title: s.name,
+        href: `/software/${s.id}`,
+        equipment: eqName || s.vendor || "",
+        chunk,
+        chunk_index: i,
+      });
+    });
+  }
+
   sqlite.exec("DELETE FROM knowledge_chunks;");
   const insert = sqlite.prepare(
     `INSERT INTO knowledge_chunks
@@ -220,11 +287,34 @@ export function rebuildKnowledgeIndex() {
   return rows.length;
 }
 
+function scoreHaystack(tokens: string[], title: string, chunk: string) {
+  const hay = `${title}\n${chunk}`.toLowerCase();
+  const titleLower = title.toLowerCase();
+  let score = 0;
+  for (const t of tokens) {
+    const tok = t.toLowerCase();
+    if (!hay.includes(tok)) continue;
+    // Mã/tên trong title (vd E2001) ưu tiên mạnh — chỉ điểm đúng software
+    if (titleLower.includes(tok)) {
+      score += /\d/.test(tok) ? 24 : tok.length >= 5 ? 12 : 6;
+    } else {
+      score += /\d/.test(tok) ? 8 : tok.length >= 5 ? 3 : 1;
+    }
+    if (
+      chunk.toLowerCase().includes("keyword ai:") &&
+      chunk.toLowerCase().includes(tok)
+    ) {
+      score += /\d/.test(tok) ? 10 : 4;
+    }
+  }
+  return score;
+}
+
 export function searchKnowledgeChunks(
   tokens: string[],
   limit = 4,
 ): {
-  sourceType: "article" | "case" | "doc";
+  sourceType: KnowledgeSourceType;
   sourceId: number;
   title: string;
   href: string;
@@ -269,6 +359,11 @@ export function searchKnowledgeChunks(
            LIMIT ?`,
         )
         .all(ftsTerms, limit * 4) as Raw[];
+      // Re-score với ưu tiên title/keyword (FTS rank chỉ để lọc ứng viên)
+      hits = hits.map((h) => ({
+        ...h,
+        score: scoreHaystack(tokens, h.title, h.chunk) || h.score,
+      }));
     } catch {
       hits = [];
     }
@@ -283,15 +378,10 @@ export function searchKnowledgeChunks(
       .all() as Omit<Raw, "score">[];
 
     hits = all
-      .map((row) => {
-        const hay = `${row.title}\n${row.chunk}`.toLowerCase();
-        let score = 0;
-        for (const t of tokens) {
-          if (!hay.includes(t)) continue;
-          score += /\d/.test(t) ? 8 : t.length >= 5 ? 3 : 1;
-        }
-        return { ...row, score };
-      })
+      .map((row) => ({
+        ...row,
+        score: scoreHaystack(tokens, row.title, row.chunk),
+      }))
       .filter((r) => r.score > 0)
       .sort((a, b) => b.score - a.score)
       .slice(0, limit * 4);
@@ -308,7 +398,7 @@ export function searchKnowledgeChunks(
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map((h) => ({
-      sourceType: h.source_type as "article" | "case" | "doc",
+      sourceType: h.source_type as KnowledgeSourceType,
       sourceId: h.source_id,
       title: h.title,
       href: h.href,
@@ -324,7 +414,7 @@ export function getChunksForSources(
   tokens: string[],
   perSource = 2,
 ): {
-  sourceType: "article" | "case" | "doc";
+  sourceType: KnowledgeSourceType;
   sourceId: number;
   title: string;
   href: string;
@@ -335,7 +425,7 @@ export function getChunksForSources(
   if (!focus.length) return [];
   const sqlite = getSqlite();
   const out: {
-    sourceType: "article" | "case" | "doc";
+    sourceType: KnowledgeSourceType;
     sourceId: number;
     title: string;
     href: string;
@@ -361,23 +451,17 @@ export function getChunksForSources(
       chunk: string;
     }[];
 
-    const scored = rows.map((row) => {
-      const hay = `${row.title}\n${row.chunk}`.toLowerCase();
-      let score = 5; // nền tảng vì đang focus
-      for (const t of tokens) {
-        if (hay.includes(t.toLowerCase())) {
-          score += /\d/.test(t) ? 8 : t.length >= 5 ? 3 : 1;
-        }
-      }
-      return { row, score };
-    });
+    const scored = rows.map((row) => ({
+      row,
+      score: 5 + scoreHaystack(tokens, row.title, row.chunk),
+    }));
 
     scored
       .sort((a, b) => b.score - a.score)
       .slice(0, perSource)
       .forEach(({ row, score }) => {
         out.push({
-          sourceType: row.source_type as "article" | "case" | "doc",
+          sourceType: row.source_type as KnowledgeSourceType,
           sourceId: row.source_id,
           title: row.title,
           href: row.href,

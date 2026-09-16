@@ -416,6 +416,44 @@ export async function deleteMedia(formData: FormData) {
   redirect("/library?tab=docs");
 }
 
+export async function updateSoftware(formData: FormData) {
+  await requireEditor();
+  const id = Number(formData.get("id"));
+  const name = String(formData.get("name") || "").trim();
+  const functionText = String(formData.get("functionText") || "").trim();
+  const vendor = String(formData.get("vendor") || "").trim();
+  const notes = String(formData.get("notes") || "").trim();
+  const aiKeywords = requireAiKeywords(formData.get("aiKeywords"));
+  const equipmentTypeId = Number(formData.get("equipmentTypeId"));
+
+  if (!id || !name || !functionText || !vendor) {
+    throw new Error("Thiếu tên, chức năng hoặc hãng sản xuất");
+  }
+  if (!Number.isFinite(equipmentTypeId) || equipmentTypeId <= 0) {
+    throw new Error("Hãy chọn loại thiết bị");
+  }
+
+  const existing = db.select().from(software).where(eq(software.id, id)).get();
+  if (!existing) throw new Error("Không tìm thấy software");
+
+  db.update(software)
+    .set({ name, functionText, vendor, notes, aiKeywords, equipmentTypeId })
+    .where(eq(software.id, id))
+    .run();
+
+  try {
+    const { rebuildKnowledgeIndex } = await import("@/lib/ai/knowledge-index");
+    rebuildKnowledgeIndex();
+  } catch {
+    /* ignore */
+  }
+
+  revalidatePath("/");
+  revalidatePath(`/software/${id}`);
+  revalidatePath(`/equipment`);
+  redirect(`/software/${id}`);
+}
+
 export async function deleteSoftware(formData: FormData) {
   const user = await requireUser();
   if (!user || !canAdmin(user.role)) throw new Error("Chỉ admin mới xóa được");
@@ -430,8 +468,35 @@ export async function deleteSoftware(formData: FormData) {
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   }
   db.delete(software).where(eq(software.id, id)).run();
+  try {
+    const { rebuildKnowledgeIndex } = await import("@/lib/ai/knowledge-index");
+    rebuildKnowledgeIndex();
+  } catch {
+    /* ignore */
+  }
   revalidatePath("/");
   redirect("/?tab=software");
+}
+
+/** Xóa từng file software (editor được phép; không xóa cả mục). */
+export async function deleteSoftwareFile(formData: FormData) {
+  const user = await requireUser();
+  if (!user || !canEdit(user.role)) throw new Error("Không có quyền");
+  const id = Number(formData.get("id"));
+  const item = db
+    .select()
+    .from(softwareFiles)
+    .where(eq(softwareFiles.id, id))
+    .get();
+  if (!item) {
+    redirect("/?tab=software");
+  }
+  const softwareId = item.softwareId;
+  const filePath = path.join(process.cwd(), "data", item.relPath);
+  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  db.delete(softwareFiles).where(eq(softwareFiles.id, id)).run();
+  revalidatePath(`/software/${softwareId}`);
+  redirect(`/software/${softwareId}`);
 }
 
 /** Xóa từng file đính kèm bài/tình huống (editor được phép). */

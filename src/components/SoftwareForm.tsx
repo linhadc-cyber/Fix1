@@ -4,17 +4,26 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AiKeywordsField } from "@/components/AiKeywordsField";
+import { ClearableTextarea } from "@/components/ClearableTextarea";
 
 const MAX_BYTES = 500 * 1024 * 1024;
 const MAX_FILES = 5;
 const ACCEPT =
   ".exe,.zip,.rar,.pdf,.docx,.jpg,.jpeg,application/pdf,image/jpeg,application/zip,application/x-rar-compressed,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
+type EquipmentOpt = { id: number; name: string };
+
 type Props = {
   uploaderName: string;
+  equipment: EquipmentOpt[];
+  defaultEquipmentTypeId?: number;
 };
 
-export function SoftwareForm({ uploaderName }: Props) {
+export function SoftwareForm({
+  uploaderName,
+  equipment,
+  defaultEquipmentTypeId,
+}: Props) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
@@ -119,58 +128,91 @@ export function SoftwareForm({ uploaderName }: Props) {
       : null;
 
   return (
-    <form onSubmit={onSubmit} className="card space-y-4">
-      <label>
-        <span className="label">Tên software</span>
-        <input name="name" required className="input" />
-      </label>
-      <label>
-        <span className="label">Chức năng</span>
-        <textarea
+    <form onSubmit={onSubmit} className="form-stack">
+      <section className="zone zone-content space-y-4">
+        <p className="zone-title">Thông tin software</p>
+        <label>
+          <span className="label">Loại thiết bị</span>
+          <select
+            name="equipmentTypeId"
+            required
+            className="select"
+            defaultValue={defaultEquipmentTypeId || ""}
+          >
+            <option value="" disabled>
+              Chọn thiết bị…
+            </option>
+            {equipment.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.name}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            Software sẽ hiện trong tab Software của thiết bị đã chọn.
+          </p>
+        </label>
+        <label>
+          <span className="label">Tên software</span>
+          <input name="name" required className="input" />
+        </label>
+        <ClearableTextarea
           name="functionText"
-          required
+          label="Chức năng"
           className="textarea min-h-24"
+          required
           placeholder="Phần mềm dùng để làm gì…"
         />
-      </label>
-      <label>
-        <span className="label">Hãng sản xuất</span>
-        <input name="vendor" required className="input" />
-      </label>
-      <label>
-        <span className="label">Người upload</span>
-        <input className="input" value={uploaderName} disabled readOnly />
-      </label>
-      <AiKeywordsField />
-      <label>
-        <span className="label">Ghi chú / hướng dẫn sử dụng</span>
-        <textarea name="notes" className="textarea min-h-28" />
-      </label>
-      <label>
-        <span className="label">
-          File (1–{MAX_FILES}): exe, zip, rar, pdf, docx, jpeg — mỗi file &lt; 500MB
-        </span>
-        <input
-          ref={inputRef}
-          name="files"
-          type="file"
-          required
-          multiple
-          accept={ACCEPT}
-          className="input"
-          onChange={(e) => setFileCount(e.target.files?.length || 0)}
+        <label>
+          <span className="label">Hãng sản xuất</span>
+          <input name="vendor" required className="input" />
+        </label>
+        <label>
+          <span className="label">Người upload</span>
+          <input className="input" value={uploaderName} disabled readOnly />
+        </label>
+        <ClearableTextarea
+          name="notes"
+          label="Ghi chú / hướng dẫn sử dụng"
+          className="textarea min-h-28"
         />
-        {fileCount > 0 ? (
-          <p className="mt-1 text-xs text-[var(--muted)]">
-            Đã chọn {fileCount} file
-            {fileCount > MAX_FILES ? ` (vượt quá ${MAX_FILES})` : ""}
-          </p>
-        ) : null}
-      </label>
-      {error ? <p className="text-base text-red-700">{error}</p> : null}
-      <button type="submit" disabled={loading} className="btn btn-primary">
-        {loading ? "Đang tải lên…" : "Lưu software"}
-      </button>
+      </section>
+
+      <section className="zone zone-meta space-y-3">
+        <p className="zone-title">Keyword AI & file</p>
+        <AiKeywordsField />
+        <label>
+          <span className="label">
+            File (1–{MAX_FILES}): exe, zip, rar, pdf, docx, jpeg — mỗi file &lt;
+            500MB
+          </span>
+          <input
+            ref={inputRef}
+            name="files"
+            type="file"
+            required
+            multiple
+            accept={ACCEPT}
+            className="input"
+            onChange={(e) => setFileCount(e.target.files?.length || 0)}
+          />
+          {fileCount > 0 ? (
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              Đã chọn {fileCount} file
+              {fileCount > MAX_FILES ? ` (vượt quá ${MAX_FILES})` : ""}
+            </p>
+          ) : null}
+        </label>
+      </section>
+
+      {error ? (
+        <p className="text-base text-red-700">{error}</p>
+      ) : null}
+      <div className="zone zone-actions">
+        <button type="submit" disabled={loading} className="btn btn-primary">
+          {loading ? "Đang tải lên…" : "Lưu software"}
+        </button>
+      </div>
       {warnDialog}
     </form>
   );

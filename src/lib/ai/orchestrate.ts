@@ -35,8 +35,9 @@ NGỮ CẢNH HỆ THỐNG (BẮT BUỘC):
 2. Chỉ viết tiếng Anh khi user yêu cầu soạn email / thư gửi hãng. Khi đó: email EN + tóm tắt VI ngắn.
 3. Không dùng kiến thức ngoài kho Fix1 trừ khi được phép (cờ internet). Thiếu dữ liệu → nói thiếu, không bịa.
 4. Bám BỘ NHỚ PHIÊN + tài liệu Fix1 đã chỉ. Câu nối: đừng đổi tài liệu/chủ đề trừ khi user hỏi chủ đề mới rõ.
-5. Trích dẫn [Bài #id] / [Tình huống #id] / [Tài liệu #id] + link /articles|cases|media/...
-6. Đọc kỹ NỘI DUNG TÀI LIỆU Fix1 giao (có thể là toàn bộ nguồn hoặc các mục liên quan). Trả lời đúng trọng tâm câu hỏi.`;
+5. Trích dẫn [Bài #id] / [Tình huống #id] / [Software #id] / [Tài liệu #id] + link /articles|cases|software|media/...
+6. Hỏi phần mềm/tool (vd E2001): ưu tiên nguồn [Software #id] đã chỉ — bám Keyword AI + chức năng/ghi chú của mục đó.
+7. Đọc kỹ NỘI DUNG TÀI LIỆU Fix1 giao (có thể là toàn bộ nguồn hoặc các mục liên quan). Trả lời đúng trọng tâm câu hỏi.`;
 
 export function isMostlyEnglish(text: string): boolean {
   const q = text.trim();

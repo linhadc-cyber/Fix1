@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import { EQUIPMENT_CATALOG } from "@/lib/equipment-catalog";
 
 /** Tạo bảng nếu chưa có (không cần drizzle-kit khi deploy LAN). */
 export function ensureChatTables(sqlite: DatabaseSync) {
@@ -130,6 +131,20 @@ export function ensureSoftwareTables(sqlite: DatabaseSync) {
 
   addColumnIfMissing(
     sqlite,
+    "software",
+    "equipment_type_id",
+    `equipment_type_id INTEGER REFERENCES equipment_types(id)`,
+  );
+  try {
+    sqlite.exec(
+      `CREATE INDEX IF NOT EXISTS idx_software_equipment ON software(equipment_type_id)`,
+    );
+  } catch {
+    /* ignore */
+  }
+
+  addColumnIfMissing(
+    sqlite,
     "articles",
     "ai_keywords",
     `ai_keywords TEXT NOT NULL DEFAULT ''`,
@@ -140,4 +155,103 @@ export function ensureSoftwareTables(sqlite: DatabaseSync) {
     "ai_keywords",
     `ai_keywords TEXT NOT NULL DEFAULT ''`,
   );
+}
+
+type EquipRow = {
+  id: number;
+  slug: string;
+  name: string;
+  description: string;
+  sort_order: number;
+};
+
+function reassignEquipmentContent(
+  sqlite: DatabaseSync,
+  fromId: number,
+  toId: number,
+) {
+  if (fromId === toId) return;
+  for (const table of ["articles", "cases", "media", "software"] as const) {
+    try {
+      sqlite
+        .prepare(
+          `UPDATE ${table} SET equipment_type_id = ? WHERE equipment_type_id = ?`,
+        )
+        .run(toId, fromId);
+    } catch {
+      /* bảng có thể chưa có cột / chưa tồn tại */
+    }
+  }
+}
+
+/**
+ * Đồng bộ danh mục thiết bị:
+ * Tủ nạp · Acquy · Inverter · Giám sát AQ · Giám sát DC · UPS · Các sản phẩm khác
+ */
+export function ensureEquipmentCatalog(sqlite: DatabaseSync) {
+  try {
+    const findBySlug = (slug: string) =>
+      sqlite
+        .prepare(
+          `SELECT id, slug, name, description, sort_order FROM equipment_types WHERE slug = ?`,
+        )
+        .get(slug) as EquipRow | undefined;
+
+    for (const item of EQUIPMENT_CATALOG) {
+      const candidates = [item.slug, ...(item.aliases || [])];
+      let primary: EquipRow | undefined;
+      for (const s of candidates) {
+        const row = findBySlug(s);
+        if (row) {
+          primary = row;
+          break;
+        }
+      }
+
+      if (!primary) {
+        sqlite
+          .prepare(
+            `INSERT INTO equipment_types (slug, name, description, sort_order)
+             VALUES (?, ?, ?, ?)`,
+          )
+          .run(item.slug, item.name, item.description, item.sortOrder);
+        primary = findBySlug(item.slug);
+      } else if (
+        primary.slug !== item.slug ||
+        primary.name !== item.name ||
+        primary.description !== item.description ||
+        primary.sort_order !== item.sortOrder
+      ) {
+        sqlite
+          .prepare(
+            `UPDATE equipment_types
+             SET slug = ?, name = ?, description = ?, sort_order = ?
+             WHERE id = ?`,
+          )
+          .run(
+            item.slug,
+            item.name,
+            item.description,
+            item.sortOrder,
+            primary.id,
+          );
+        primary = findBySlug(item.slug) || { ...primary, slug: item.slug };
+      }
+
+      if (!primary) continue;
+
+      for (const alias of item.aliases || []) {
+        if (alias === item.slug) continue;
+        const orphan = findBySlug(alias);
+        if (orphan && orphan.id !== primary.id) {
+          reassignEquipmentContent(sqlite, orphan.id, primary.id);
+          sqlite
+            .prepare(`DELETE FROM equipment_types WHERE id = ?`)
+            .run(orphan.id);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[fix1] equipment catalog sync skipped:", err);
+  }
 }

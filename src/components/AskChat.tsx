@@ -6,7 +6,7 @@ import { Markdown } from "@/components/Markdown";
 import { ConfirmDelete } from "@/components/ConfirmDelete";
 
 export type ChatSource = {
-  type: "article" | "case" | "doc";
+  type: "article" | "case" | "doc" | "software";
   id: number;
   title: string;
   href: string;
@@ -297,7 +297,7 @@ export function AskChat({
   return (
     <div className="ask-chat">
       {!hasKey ? (
-        <div className="card shrink-0">
+        <div className="zone zone-meta shrink-0">
           <h2 className="text-lg font-semibold">Chưa gắn ModelArk API key</h2>
           <p className="mt-2 text-sm text-[var(--muted)]">
             Thêm vào <code>.env.local</code> rồi restart server.
@@ -305,12 +305,10 @@ export function AskChat({
         </div>
       ) : null}
 
-      <div className="ask-chat-panel card">
-        <div className="ask-chat-toolbar">
+      <div className="ask-chat-panel">
+        <div className="ask-chat-toolbar zone-actions">
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--brand)]">
-              Hỏi AI kỹ thuật
-            </p>
+            <p className="zone-title mb-0">Hỏi AI kỹ thuật</p>
             <h1 className="truncate text-base font-semibold leading-tight">
               {sessionTitle}
             </h1>
@@ -350,9 +348,9 @@ export function AskChat({
         </div>
 
         <div className="ask-chat-body">
-          <aside className="ask-chat-sessions">
+          <aside className="ask-chat-sessions" aria-label="Phiên chat">
             <div className="ask-chat-sessions-head">
-              Lịch sử ({sessions.length}/{maxSessions})
+              Phiên ({sessions.length}/{maxSessions})
             </div>
             <div className="ask-chat-sessions-list">
               {sessions.length === 0 ? (
@@ -407,10 +405,10 @@ export function AskChat({
               {messages.map((m) => (
                 <div
                   key={m.id}
-                  className={`animate-rise max-w-[95%] rounded-xl px-4 py-3 ${
+                  className={`max-w-[95%] rounded-lg px-4 py-3 ${
                     m.role === "user"
                       ? "ml-auto bg-[var(--brand)] text-white"
-                      : "mr-auto bg-[var(--bg-soft)]"
+                      : "mr-auto border border-[var(--border)] bg-[var(--zone-content-bg)]"
                   }`}
                 >
                   <div className="mb-1 text-xs font-semibold opacity-80">
@@ -454,7 +452,7 @@ export function AskChat({
               ))}
 
               {loading ? (
-                <p className="animate-rise text-sm text-[var(--muted)]">
+                <p className="text-sm text-[var(--muted)]">
                   Đang đọc chỉ mục Fix1 và soạn trả lời…
                 </p>
               ) : null}

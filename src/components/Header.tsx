@@ -1,38 +1,25 @@
 import Link from "next/link";
-import { canAdmin, canEdit, requireUser } from "@/lib/session";
+import { canAdmin, requireUser } from "@/lib/session";
 import { logoutAction } from "@/app/actions";
 
 export async function Header() {
   const user = await requireUser();
 
   return (
-    <header className="site-header">
+    <header className="site-header zone-nav">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 lg:gap-4">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 lg:gap-3">
           <Link href="/" className="brand-mark shrink-0">
             Fix1
           </Link>
           {user ? (
-            <nav className="flex flex-wrap items-center gap-0.5">
+            <nav className="flex flex-wrap items-center gap-0.5" aria-label="Chính">
               <Link href="/" className="nav-link">
                 Trang chủ
               </Link>
               <Link href="/ask" className="nav-link nav-link-ai">
                 Hỏi AI
               </Link>
-              {canEdit(user.role) ? (
-                <>
-                  <Link href="/articles/new" className="nav-link">
-                    + Bài viết
-                  </Link>
-                  <Link href="/cases/new" className="nav-link">
-                    + Tình huống
-                  </Link>
-                  <Link href="/software/new" className="nav-link">
-                    + Software
-                  </Link>
-                </>
-              ) : null}
               {canAdmin(user.role) ? (
                 <Link href="/admin/users" className="nav-link">
                   Người dùng

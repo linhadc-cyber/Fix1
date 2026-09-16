@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { articleTags, articles, equipmentTypes, tags } from "@/db/schema";
 import { updateArticle } from "@/app/actions";
 import { ArticleForm } from "@/components/ArticleForm";
+import { Breadcrumb } from "@/components/Breadcrumb";
 
 export default async function EditArticlePage({
   params,
@@ -30,11 +30,17 @@ export default async function EditArticlePage({
     .all();
 
   return (
-    <div className="w-full space-y-4">
-      <p className="text-sm text-[var(--muted)]">
-        <Link href={`/articles/${id}`}>← Quay lại</Link>
-      </p>
-      <h1 className="text-2xl font-semibold">Sửa bài kiến thức</h1>
+    <div className="page-stack w-full">
+      <div>
+        <Breadcrumb
+          items={[
+            { label: "Trang chủ", href: "/" },
+            { label: article.title, href: `/articles/${id}` },
+            { label: "Sửa" },
+          ]}
+        />
+        <h1 className="mt-2 text-2xl font-semibold">Sửa bài kiến thức</h1>
+      </div>
       <ArticleForm
         action={updateArticle}
         equipment={equipment}

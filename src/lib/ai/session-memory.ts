@@ -1,5 +1,5 @@
 export type FocusSource = {
-  type: "article" | "case" | "doc";
+  type: "article" | "case" | "doc" | "software";
   id: number;
 };
 
@@ -11,7 +11,7 @@ export type SessionMemory = {
   /** Ghi chú thông số / kết luận ngắn */
   notes: string;
   focusDocs: {
-    type: "article" | "case" | "doc";
+    type: "article" | "case" | "doc" | "software";
     id: number;
     title: string;
     href: string;
@@ -20,6 +20,12 @@ export type SessionMemory = {
 
 export function emptySessionMemory(): SessionMemory {
   return { summary: "", notes: "", focusDocs: [] };
+}
+
+function isSourceType(t: unknown): t is FocusSource["type"] {
+  return (
+    t === "article" || t === "case" || t === "doc" || t === "software"
+  );
 }
 
 export function parseSessionMemory(raw: string | null | undefined): SessionMemory {
@@ -33,9 +39,7 @@ export function parseSessionMemory(raw: string | null | undefined): SessionMemor
         ? p.focusDocs
             .filter(
               (d) =>
-                d &&
-                (d.type === "article" || d.type === "case" || d.type === "doc") &&
-                Number.isFinite(Number(d.id)),
+                d && isSourceType(d.type) && Number.isFinite(Number(d.id)),
             )
             .map((d) => ({
               type: d.type as FocusSource["type"],

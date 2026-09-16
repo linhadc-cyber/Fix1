@@ -51,7 +51,10 @@ export async function POST(request: Request) {
     .filter(
       (s: FocusSource) =>
         s &&
-        (s.type === "article" || s.type === "case" || s.type === "doc") &&
+        (s.type === "article" ||
+          s.type === "case" ||
+          s.type === "doc" ||
+          s.type === "software") &&
         Number.isFinite(Number(s.id)),
     )
     .map((s: FocusSource) => ({

@@ -1,7 +1,7 @@
 import { searchKnowledgeChunks } from "@/lib/ai/knowledge-index";
 
 export type RetrievedSource = {
-  type: "article" | "case" | "doc";
+  type: "article" | "case" | "doc" | "software";
   id: number;
   title: string;
   equipmentName: string | null;
@@ -159,7 +159,9 @@ export function buildPromptContext(sources: RetrievedSource[]) {
           ? `Bài #${s.id}`
           : s.type === "case"
             ? `Tình huống #${s.id}`
-            : `Tài liệu #${s.id}`;
+            : s.type === "software"
+              ? `Software #${s.id}`
+              : `Tài liệu #${s.id}`;
       return `[${i + 1}] ${label} | ${s.title}${s.equipmentName ? ` | ${s.equipmentName}` : ""}
 ${s.href}
 ${s.excerpt}`;
@@ -170,5 +172,6 @@ ${s.excerpt}`;
 export function sourceLabel(s: RetrievedSource) {
   if (s.type === "article") return `Bài #${s.id}`;
   if (s.type === "case") return `Tình huống #${s.id}`;
+  if (s.type === "software") return `Software #${s.id}`;
   return `Tài liệu #${s.id}`;
 }
